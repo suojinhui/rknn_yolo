@@ -10,59 +10,6 @@
 #include <spdlog/spdlog.h>
 #include <fstream>
 #include <omp.h>
-#include "rknnpool.h"
-
-// int main(int argc, char* argv[]) {
-    
-//     std::string model_path = "model/yolov5s-640-640.rknn";
-    
-//     // create model pool
-//     int threadNum = 3; // rk3588 has 3 core npu
-//     rknnPool<YOLO_MODEL, cv::Mat, cv::Mat> modelPool(model_path.c_str(), 80, 0.45, 0.25, 960, 960, Datasets::COCO, threadNum);
-//     if (modelPool.init() != 0)
-//     {
-//         SPDLOG_INFO("rknnPool init fail!");
-//         return -1;
-//     }
-
-//     cv::Mat image;
-
-//     struct timeval start_time, stop_time;
-    
-    
-
-//     for(int i=0; i<=100000; i++) {
-//         gettimeofday(&start_time, NULL);
-
-//         image = cv::imread("./data/bus_960.jpg");
-//         if (modelPool.put(image) != 0){
-//             break;
-//         }
-      
-//         if (i >= threadNum && modelPool.get(image) != 0) {
-//             break;
-//         }
-    
-//         if (i >= threadNum){
-//             cv::imwrite("./data/results_bus.jpg", image);
-//         }
-//         i++;
-
-//         image = cv::imread("./data/city_960.png");
-//         if (modelPool.put(image) != 0){
-//             break;
-//         }
-//         if (i >= threadNum && modelPool.get(image) != 0) {
-//             break;
-//         }
-//         if (i >= threadNum){
-//             cv::imwrite("./data/results_city.png", image);
-//         }
-//         gettimeofday(&stop_time, NULL);
-//         SPDLOG_INFO("run once: {} ms", (_get_us(stop_time) - _get_us(start_time)) / 2000);
-//     }
-//     return 0;
-// }
 
 std::atomic<bool> quit(false);
 
@@ -85,15 +32,6 @@ int main(int argc, char* argv[]) {
 
     // init model
     rk_yolo_model->init_model();
-
-    // create model pool
-    // int threadNum = 3; // rk3588 has 3 core npu
-    // rknnPool<YOLO_MODEL, cv::Mat, cv::Mat> modelPool(model_path.c_str(), 80, 0.45, 0.25, 1920, 1080, Datasets::COCO, threadNum);
-    // if (modelPool.init() != 0)
-    // {
-    //     SPDLOG_INFO("rknnPool init fail!");
-    //     return -1;
-    // }
 
     constexpr size_t NUM_CAMERAS = 1;
     std::vector<std::shared_ptr<capturer::Capturer>> capturers(NUM_CAMERAS);
@@ -131,11 +69,7 @@ int main(int argc, char* argv[]) {
         for (size_t i = 0; i < NUM_CAMERAS; ++i) {
             if (!frames[i].empty()) {
                 gettimeofday(&start_time, NULL);
-                // modelPool.put(frames[i]);
                 rk_yolo_model->inference(frames[i]);
-                // if (modelPool.get(frames[i]) == 0) {
-                //     cv::imshow(window_names[i], frames[i]);
-                // }
                 cv::imshow(window_names[i], frames[i]);
                 gettimeofday(&stop_time, NULL);
                 SPDLOG_INFO("run once: {} ms", (_get_us(stop_time) - _get_us(start_time)) / 2000);
