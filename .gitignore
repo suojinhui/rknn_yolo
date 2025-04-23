@@ -4,5 +4,3 @@ data/
 .vscode
 bin/
 config/compile_commands.json
-include/ThreadPool.h
-include/rknnpool.h

@@ -142,20 +142,20 @@ bool YOLO_MODEL::load_model() {
     SPDLOG_INFO("model input height={}, width={}, channel={}", image_info_.h, image_info_.w, image_info_.c);
 
     // Enable the multi-core model of rk3588's NPU to improve inference speed
-    rknn_core_mask core_mask = RKNN_NPU_CORE_0_1_2;
-    // rknn_core_mask core_mask;
-    // switch (get_core_num())
-    // {
-    // case 0:
-    //     core_mask = RKNN_NPU_CORE_0;
-    //     break;
-    // case 1:
-    //     core_mask = RKNN_NPU_CORE_1;
-    //     break;
-    // case 2:
-    //     core_mask = RKNN_NPU_CORE_2;
-    //     break;
-    // }
+    // rknn_core_mask core_mask = RKNN_NPU_CORE_0_1_2;
+    rknn_core_mask core_mask;
+    switch (get_core_num())
+    {
+    case 0:
+        core_mask = RKNN_NPU_CORE_0;
+        break;
+    case 1:
+        core_mask = RKNN_NPU_CORE_1;
+        break;
+    case 2:
+        core_mask = RKNN_NPU_CORE_2;
+        break;
+    }
     ret = rknn_set_core_mask(model_rk_context_, core_mask);
     if (ret < 0)
     {
