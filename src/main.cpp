@@ -51,7 +51,7 @@ int main(int argc, char* argv[]) {
     }
 
     std::vector<std::string> window_names;
-    for (size_t i = 0; i < NUM_CAMERAS; ++i) {
+    for (size_t i = 0; i < 3; ++i) {
         std::string win_name = label + "_" + std::to_string(i);
         cv::namedWindow(win_name, cv::WINDOW_NORMAL);
         cv::resizeWindow(win_name, 640, 360);
@@ -69,8 +69,15 @@ int main(int argc, char* argv[]) {
         for (size_t i = 0; i < NUM_CAMERAS; ++i) {
             if (!frames[i].empty()) {
                 gettimeofday(&start_time, NULL);
+                cv::Mat image_ = frames[i].clone();
                 rk_yolo_model->inference(frames[i]);
-                cv::imshow(window_names[i], frames[i]);
+                cv::imshow(window_names[0], frames[i]);
+                frames[i] = image_.clone();
+                rk_yolo_model->inference(frames[i]);
+                cv::imshow(window_names[1], frames[i]);
+                frames[i] = image_;
+                rk_yolo_model->inference(frames[i]);
+                cv::imshow(window_names[2], frames[i]);
                 gettimeofday(&stop_time, NULL);
                 SPDLOG_INFO("run once: {} ms", (_get_us(stop_time) - _get_us(start_time)) / 2000);
             }
