@@ -26,19 +26,22 @@ int main(int argc, char* argv[]) {
     auto logger = spdlog::default_logger();
     logger->set_level(spdlog::level::debug);
 
-    // create model
+    // param
     std::string model_path = "model/yolov5s-640-640.rknn";
-    auto rk_yolo_model = make_detector(model_path.c_str(), 80, 0.45, 0.25, 1920, 1080, Datasets::COCO);
-
-    // init model
-    rk_yolo_model->init_model();
-
-    constexpr size_t NUM_CAMERAS = 1;
+    constexpr size_t NUM_CAMERAS = 2;
     std::vector<std::shared_ptr<capturer::Capturer>> capturers(NUM_CAMERAS);
-    const std::vector<int> device_ids = {11};
+    std::vector<std::shared_ptr<YOLO_MODEL>> detectors(NUM_CAMERAS);
+    const std::vector<int> device_ids = {11, 12};
     const std::string label = "Camera";
 
     struct timeval start_time, stop_time;
+
+    //create detector
+#pragma omp parallel for
+    for (size_t i = 0; i < NUM_CAMERAS; ++i) {
+        detectors[i] = make_detector(model_path.c_str(), 80, 0.45, 0.25, 1920, 1080, Datasets::COCO);
+        detectors[i]->init_model();
+    }
     
     //create camera
 #pragma omp parallel for
@@ -51,7 +54,7 @@ int main(int argc, char* argv[]) {
     }
 
     std::vector<std::string> window_names;
-    for (size_t i = 0; i < 3; ++i) {
+    for (size_t i = 0; i < NUM_CAMERAS; ++i) {
         std::string win_name = label + "_" + std::to_string(i);
         cv::namedWindow(win_name, cv::WINDOW_NORMAL);
         cv::resizeWindow(win_name, 640, 360);
@@ -65,23 +68,16 @@ int main(int argc, char* argv[]) {
         for (size_t i = 0; i < NUM_CAMERAS; ++i) {
             frames[i] = capturers[i]->GetImage().clone();
         }
-
+        gettimeofday(&start_time, NULL);
+#pragma omp parallel for
         for (size_t i = 0; i < NUM_CAMERAS; ++i) {
             if (!frames[i].empty()) {
-                gettimeofday(&start_time, NULL);
-                cv::Mat image_ = frames[i].clone();
-                rk_yolo_model->inference(frames[i]);
-                cv::imshow(window_names[0], frames[i]);
-                frames[i] = image_.clone();
-                rk_yolo_model->inference(frames[i]);
-                cv::imshow(window_names[1], frames[i]);
-                frames[i] = image_;
-                rk_yolo_model->inference(frames[i]);
-                cv::imshow(window_names[2], frames[i]);
-                gettimeofday(&stop_time, NULL);
-                SPDLOG_INFO("run once: {} ms", (_get_us(stop_time) - _get_us(start_time)) / 2000);
+                detectors[i]->inference(frames[i]);
+                cv::imshow(window_names[i], frames[i]);
             }
         }
+        gettimeofday(&stop_time, NULL);
+        SPDLOG_INFO("run once: {} ms", (_get_us(stop_time) - _get_us(start_time)) / 1000);
 
         int key = cv::waitKey(1);
         if (key == 'q' || key == 'Q') {
@@ -99,7 +95,13 @@ int main(int argc, char* argv[]) {
         cv::destroyWindow(win_name);
     }
 
-    rk_yolo_model->destroy();
+    for (auto& detector : detectors) {
+        if (detector) {
+            detector->destroy();
+        }
+    }
+
+    
 
     return 0;
 }
