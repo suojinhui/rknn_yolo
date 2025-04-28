@@ -75,19 +75,15 @@ int main(int argc, char* argv[]) {
             if (!frames[i].empty()) {
                 gettimeofday(&start_time, NULL);
                 modelPool.put(frames[i].clone());
-                modelPool.put(frames[i].clone());
-                modelPool.put(frames[i].clone());
                 if (modelPool.get(frames[i]) == 0) {
                     cv::imshow(window_names[0], frames[i]);
                 }
+                gettimeofday(&stop_time, NULL);
+                SPDLOG_INFO("run once: {} ms", (_get_us(stop_time) - _get_us(start_time)) / 2000);
+                modelPool.put(frames[i].clone());
                 if (modelPool.get(frames[i]) == 0) {
                     cv::imshow(window_names[1], frames[i]);
                 }
-                if (modelPool.get(frames[i]) == 0) {
-                    cv::imshow(window_names[2], frames[i]);
-                }
-                gettimeofday(&stop_time, NULL);
-                SPDLOG_INFO("run once: {} ms", (_get_us(stop_time) - _get_us(start_time)) / 2000);
             }
         }
 
