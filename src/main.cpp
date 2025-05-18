@@ -68,16 +68,17 @@ int main(int argc, char* argv[]) {
         for (size_t i = 0; i < NUM_CAMERAS; ++i) {
             frames[i] = capturers[i]->GetImage().clone();
         }
-        gettimeofday(&start_time, NULL);
+
 #pragma omp parallel for
         for (size_t i = 0; i < NUM_CAMERAS; ++i) {
             if (!frames[i].empty()) {
+                gettimeofday(&start_time, NULL);
                 detectors[i]->inference(frames[i]);
+                gettimeofday(&stop_time, NULL);
+                SPDLOG_INFO("run once: {} ms", (_get_us(stop_time) - _get_us(start_time)) / 1000);
                 cv::imshow(window_names[i], frames[i]);
             }
         }
-        gettimeofday(&stop_time, NULL);
-        SPDLOG_INFO("run once: {} ms", (_get_us(stop_time) - _get_us(start_time)) / 1000);
 
         int key = cv::waitKey(1);
         if (key == 'q' || key == 'Q') {

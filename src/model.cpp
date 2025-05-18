@@ -2,29 +2,32 @@
 #include "spdlog/spdlog.h"
 #include "utils.h"
 
-YOLO_MODEL::YOLO_MODEL(const char* model_name,  int num_classes, float nms_threshold, float box_conf_threshold_, 
-    int input_width, int input_height, Datasets dataset_type):
-    model_name_(model_name),
-    num_classes_(num_classes),
-    nms_threshold_(nms_threshold),
-    image_info_input_(image_info(input_height, input_width, 3)),
-    box_conf_threshold_(box_conf_threshold_) 
+YOLO_MODEL::YOLO_MODEL(const char *model_name, int num_classes, float nms_threshold, float box_conf_threshold_,
+                       int input_width, int input_height, Datasets dataset_type) : model_name_(model_name),
+                                                                                   num_classes_(num_classes),
+                                                                                   nms_threshold_(nms_threshold),
+                                                                                   image_info_input_(image_info(input_height, input_width, 3)),
+                                                                                   box_conf_threshold_(box_conf_threshold_)
+{
+    if (dataset_type == Datasets::COCO)
     {
-        if(dataset_type == Datasets::COCO)
-        {
-            labels_map_ = shared_ptr<IBaseLabels>(new CocoLabels());
-        } else if (dataset_type == Datasets::Bdd100k)
-        {
-            labels_map_ = shared_ptr<IBaseLabels>(new Bdd100kLabels());
-        } else {
-            SPDLOG_ERROR("Unsupported dataset type!");
-            std::abort();
-        }
+        labels_map_ = shared_ptr<IBaseLabels>(new CocoLabels());
     }
+    else if (dataset_type == Datasets::Bdd100k)
+    {
+        labels_map_ = shared_ptr<IBaseLabels>(new Bdd100kLabels());
+    }
+    else
+    {
+        SPDLOG_ERROR("Unsupported dataset type!");
+        std::abort();
+    }
+}
 
 YOLO_MODEL::~YOLO_MODEL() {}
 
-bool YOLO_MODEL::load_model() {
+bool YOLO_MODEL::load_model()
+{
     int ret;
     int model_size = 0;
     FILE *fp;
@@ -95,8 +98,8 @@ bool YOLO_MODEL::load_model() {
         ret = rknn_query(model_rk_context_, RKNN_QUERY_NATIVE_INPUT_ATTR, &(input_attrs_[i]), sizeof(rknn_tensor_attr));
         if (ret < 0)
         {
-        SPDLOG_ERROR("rknn_query RKNN_QUERY_INPUT_ATTR error ret=%d\n", ret);
-        return false;
+            SPDLOG_ERROR("rknn_query RKNN_QUERY_INPUT_ATTR error ret=%d\n", ret);
+            return false;
         }
         // default input type is int8 (normalize and quantize need compute in outside)
         // if set uint8, will fuse normalize and quantize to npu
@@ -109,19 +112,19 @@ bool YOLO_MODEL::load_model() {
     for (int i = 0; i < io_num_.n_output; i++)
     {
         output_attrs_[i].index = i;
-        // The use of RKNN_QUERY_CATIVE_OTPUT_ATTR in zero copy API will identify the output format with the most hardware 
-        // advantages, which may be NC1HWC2. Its arrangement takes into account memory hardware, and the output needs to be 
-        // converted from NC1HWC2 to NHWC to adapt to post-processing. The inference comparison here has not been conducted, 
+        // The use of RKNN_QUERY_CATIVE_OTPUT_ATTR in zero copy API will identify the output format with the most hardware
+        // advantages, which may be NC1HWC2. Its arrangement takes into account memory hardware, and the output needs to be
+        // converted from NC1HWC2 to NHWC to adapt to post-processing. The inference comparison here has not been conducted,
         // please refer to the official API documentation for details
         ret = rknn_query(model_rk_context_, RKNN_QUERY_OUTPUT_ATTR, &(output_attrs_[i]), sizeof(rknn_tensor_attr));
         if (ret < 0)
         {
-        SPDLOG_ERROR("rknn_query RKNN_QUERY_OUTPUT_ATTR error ret={}", ret);
-        return false;
+            SPDLOG_ERROR("rknn_query RKNN_QUERY_OUTPUT_ATTR error ret={}", ret);
+            return false;
         }
         out_scales_.push_back(output_attrs_[i].scale);
         out_zps_.push_back(output_attrs_[i].zp);
-        
+
         dump_tensor_attr(&(output_attrs_[i]));
     }
 
@@ -166,17 +169,18 @@ bool YOLO_MODEL::load_model() {
     return true;
 }
 
-bool YOLO_MODEL::init_rga_buffer() {
-    
+bool YOLO_MODEL::init_rga_buffer()
+{
+
     src_handle_ = 0;
     dst_handle_ = 0;
     memset(&src_, 0, sizeof(src_));
     memset(&dst_, 0, sizeof(dst_));
 
-    image_  = new uint8_t[image_info_input_.w * image_info_input_.h * 3];
-    src_handle_ = importbuffer_virtualaddr((void *)image_,  image_info_input_.w * image_info_input_.h * get_bpp_from_format(RK_FORMAT_RGB_888));
+    image_ = new uint8_t[image_info_input_.w * image_info_input_.h * 3];
+    src_handle_ = importbuffer_virtualaddr((void *)image_, image_info_input_.w * image_info_input_.h * get_bpp_from_format(RK_FORMAT_RGB_888));
     // the input fd of the rknn model is registered in rga to achieve zero copy of image scaling and model inference
-    dst_handle_ = importbuffer_fd(model_inputs_[0]->fd,  image_info_.w * image_info_.h * get_bpp_from_format(RK_FORMAT_RGB_888));
+    dst_handle_ = importbuffer_fd(model_inputs_[0]->fd, image_info_.w * image_info_.h * get_bpp_from_format(RK_FORMAT_RGB_888));
 
     if (src_handle_ == 0 || dst_handle_ == 0)
     {
@@ -198,27 +202,31 @@ bool YOLO_MODEL::init_rga_buffer() {
     return true;
 }
 
-bool YOLO_MODEL::init_io_buffer() {
-    // For the input rknn_mam, its size is determined using input_trtrs_[i].size_with_stride 
+bool YOLO_MODEL::init_io_buffer()
+{
+    // For the input rknn_mam, its size is determined using input_trtrs_[i].size_with_stride
     // to accommodate hardware memory alignment requirements
     for (uint32_t i = 0; i < io_num_.n_input; i++) // in fact, only one input
     {
         model_inputs_[i] = rknn_create_mem(model_rk_context_, input_attrs_[i].size_with_stride);
         int ret = rknn_set_io_mem(model_rk_context_, model_inputs_[i], &input_attrs_[i]);
-        if (ret < 0) {
+        if (ret < 0)
+        {
             SPDLOG_ERROR("rknn_set_input_mem fail! ret={}", ret);
             return false;
         }
     }
-    // For output, rknn_create_mem() allocates memory using the number of bytes of the data type 
-    // filled by the user * n_elems. Here, the output is int8, which can be taken as input_attrs_[i].size 
-    // For the output that requires fp32, i.e., output inverse quantization is performed internally in the 
+    // For output, rknn_create_mem() allocates memory using the number of bytes of the data type
+    // filled by the user * n_elems. Here, the output is int8, which can be taken as input_attrs_[i].size
+    // For the output that requires fp32, i.e., output inverse quantization is performed internally in the
     // model, which is sizeof(float) * n_elems.
-    for (uint32_t i = 0; i < io_num_.n_output; i++) {
+    for (uint32_t i = 0; i < io_num_.n_output; i++)
+    {
         int output_size = output_attrs_[i].size;
         model_outputs_[i] = rknn_create_mem(model_rk_context_, output_size);
         int ret = rknn_set_io_mem(model_rk_context_, model_outputs_[i], &output_attrs_[i]);
-        if (ret < 0) {
+        if (ret < 0)
+        {
             SPDLOG_ERROR("rknn_set_output_mem fail! ret={}", ret);
             return false;
         }
@@ -228,13 +236,13 @@ bool YOLO_MODEL::init_io_buffer() {
     return true;
 }
 
-
-bool YOLO_MODEL::preprocess(cv::Mat& orig_img) {
+bool YOLO_MODEL::preprocess(cv::Mat &orig_img)
+{
 
     // BGR -> RGB
     cv::Mat image;
     cv::cvtColor(orig_img, image, cv::COLOR_BGR2RGB);
-    
+
     // image copy
     memcpy(image_, image.data, image_info_input_.w * image_info_input_.h * 3);
 
@@ -248,7 +256,8 @@ bool YOLO_MODEL::preprocess(cv::Mat& orig_img) {
     return true;
 }
 
-void YOLO_MODEL::postprocess() {
+void YOLO_MODEL::postprocess()
+{
 
     // detect results pool
     std::vector<float> filterBoxes;
@@ -260,24 +269,24 @@ void YOLO_MODEL::postprocess() {
     int grid_h0 = image_info_.h / stride0;
     int grid_w0 = image_info_.w / stride0;
     int validCount0 = 0;
-    validCount0 = process((int8_t*) model_outputs_[0]->virt_addr, (int *)anchor0, grid_h0, grid_w0, image_info_.h, image_info_.w, stride0, filterBoxes, objProbs,
-                            classId, box_conf_threshold_, out_zps_[0], out_scales_[0], num_classes_);
+    validCount0 = process((int8_t *)model_outputs_[0]->virt_addr, (int *)anchor0, grid_h0, grid_w0, image_info_.h, image_info_.w, stride0, filterBoxes, objProbs,
+                          classId, box_conf_threshold_, out_zps_[0], out_scales_[0], num_classes_);
 
     // stride 16
     int stride1 = 16;
     int grid_h1 = image_info_.h / stride1;
     int grid_w1 = image_info_.w / stride1;
     int validCount1 = 0;
-    validCount1 = process((int8_t*) model_outputs_[1]->virt_addr, (int *)anchor1, grid_h1, grid_w1, image_info_.h, image_info_.w, stride1, filterBoxes, objProbs,
-                            classId, box_conf_threshold_, out_zps_[1], out_scales_[1], num_classes_);
+    validCount1 = process((int8_t *)model_outputs_[1]->virt_addr, (int *)anchor1, grid_h1, grid_w1, image_info_.h, image_info_.w, stride1, filterBoxes, objProbs,
+                          classId, box_conf_threshold_, out_zps_[1], out_scales_[1], num_classes_);
 
     // stride 32
     int stride2 = 32;
     int grid_h2 = image_info_.h / stride2;
     int grid_w2 = image_info_.w / stride2;
     int validCount2 = 0;
-    validCount2 = process((int8_t*) model_outputs_[2]->virt_addr, (int *)anchor2, grid_h2, grid_w2, image_info_.h, image_info_.w, stride2, filterBoxes, objProbs,
-                            classId, box_conf_threshold_, out_zps_[2], out_scales_[2], num_classes_);
+    validCount2 = process((int8_t *)model_outputs_[2]->virt_addr, (int *)anchor2, grid_h2, grid_w2, image_info_.h, image_info_.w, stride2, filterBoxes, objProbs,
+                          classId, box_conf_threshold_, out_zps_[2], out_scales_[2], num_classes_);
 
     int validCount = validCount0 + validCount1 + validCount2;
 
@@ -313,7 +322,7 @@ void YOLO_MODEL::postprocess() {
     {
         if (indexArray[i] == -1 || last_count >= OBJ_NUMB_MAX_SIZE)
         {
-        continue;
+            continue;
         }
         int n = indexArray[i];
 
@@ -338,17 +347,20 @@ void YOLO_MODEL::postprocess() {
     return;
 }
 
-void YOLO_MODEL::reset_task() {
+void YOLO_MODEL::reset_task()
+{
     memset(&detect_result_group_, 0, sizeof(detect_result_group_t));
 }
 
-cv::Mat YOLO_MODEL::inference(cv::Mat& orig_img) {
+cv::Mat YOLO_MODEL::inference(cv::Mat &orig_img)
+{
     reset_task();
     struct timeval start_time, stop_time;
-    
+
     gettimeofday(&start_time, NULL);
     // preprocess
-    if(!preprocess(orig_img)){
+    if (!preprocess(orig_img))
+    {
         SPDLOG_ERROR("preprocess error!");
         destroy();
         std::abort();
@@ -375,16 +387,16 @@ cv::Mat YOLO_MODEL::inference(cv::Mat& orig_img) {
     SPDLOG_DEBUG("postprocess(deqnt+nms): {} ms", (_get_us(stop_time) - _get_us(start_time)) / 1000);
 
     // draw result
-    // TODO: Can be encapsulated as a function 
+    // TODO: Can be encapsulated as a function
     int font_face = cv::FONT_HERSHEY_SIMPLEX;
     float font_scale = 0.001 * std::min(orig_img.cols, orig_img.rows);
     int font_thickness = 1;
     int baseline = 0;
-    SPDLOG_DEBUG("------------------num_object:{}----------------------",detect_result_group_.count);
+    SPDLOG_DEBUG("------------------num_object:{}----------------------", detect_result_group_.count);
     for (int i = 0; i < detect_result_group_.count; i++)
     {
-        detect_result_t* det_result = &(detect_result_group_.results[i]);
-        auto name      = labels_map_->get_label(det_result->id);
+        detect_result_t *det_result = &(detect_result_group_.results[i]);
+        auto name = labels_map_->get_label(det_result->id);
         auto rec_color = labels_map_->get_color(det_result->id);
         auto txt_color = labels_map_->get_inverse_color(rec_color);
 
@@ -392,37 +404,40 @@ cv::Mat YOLO_MODEL::inference(cv::Mat& orig_img) {
         auto txt_size = cv::getTextSize(txt, font_face, font_scale, font_thickness, &baseline);
 
         int txt_height = txt_size.height + baseline + 10;
-        int txt_width  = txt_size.width + 3;
+        int txt_width = txt_size.width + 3;
         int x1 = det_result->box.left;
         int y1 = det_result->box.top;
         int x2 = det_result->box.right;
         int y2 = det_result->box.bottom;
 
-
         cv::Point txt_pos(round(x1), round(y1 - (txt_size.height - baseline + font_thickness)));
-        cv::Rect  txt_rec(round(x1 - font_thickness), round(y1 - txt_height), txt_width, txt_height);
-        cv::Rect  box_rec(round(x1), round(y1), round(x2 - x1), round(y2 - y1));
+        cv::Rect txt_rec(round(x1 - font_thickness), round(y1 - txt_height), txt_width, txt_height);
+        cv::Rect box_rec(round(x1), round(y1), round(x2 - x1), round(y2 - y1));
 
         cv::rectangle(orig_img, box_rec, rec_color, 3);
         cv::rectangle(orig_img, txt_rec, rec_color, -1);
         cv::putText(orig_img, txt, txt_pos, font_face, font_scale, txt_color, font_thickness, 16);
-        SPDLOG_DEBUG("{} @ (Confidence: {}, Box[ltrb]: {} {} {} {})", name, det_result->prop, det_result->box.left, 
-            det_result->box.top, det_result->box.right, det_result->box.bottom);
+        SPDLOG_DEBUG("{} @ (Confidence: {}, Box[ltrb]: {} {} {} {})", name, det_result->prop, det_result->box.left,
+                     det_result->box.top, det_result->box.right, det_result->box.bottom);
     }
     return orig_img;
-
 }
 
-void YOLO_MODEL::destroy() {
+void YOLO_MODEL::destroy()
+{
 
     // detele rknn io mem
-    for (uint32_t i = 0; i < io_num_.n_input; ++i) {
-        if (model_inputs_[i]) {
+    for (uint32_t i = 0; i < io_num_.n_input; ++i)
+    {
+        if (model_inputs_[i])
+        {
             rknn_destroy_mem(model_rk_context_, model_inputs_[i]);
         }
     }
-    for (uint32_t i = 0; i < io_num_.n_output; ++i) {
-        if (model_outputs_[i]) {
+    for (uint32_t i = 0; i < io_num_.n_output; ++i)
+    {
+        if (model_outputs_[i])
+        {
             rknn_destroy_mem(model_rk_context_, model_outputs_[i]);
         }
     }
@@ -430,7 +445,8 @@ void YOLO_MODEL::destroy() {
     // destroy rknn
     rknn_destroy(model_rk_context_);
 
-    if (image_) {
+    if (image_)
+    {
         delete[] image_;
         image_ = nullptr;
     }
@@ -442,34 +458,38 @@ void YOLO_MODEL::destroy() {
         releasebuffer_handle(dst_handle_);
 
     SPDLOG_INFO("yolo model destory!");
-
 }
 
-void YOLO_MODEL::init_model() {
+void YOLO_MODEL::init_model()
+{
     // create model
-    if (!load_model()) {
+    if (!load_model())
+    {
         SPDLOG_ERROR("load model error!");
         destroy();
         std::abort();
     }
 
     // set io buffer
-    if (!init_io_buffer()) {
+    if (!init_io_buffer())
+    {
         SPDLOG_ERROR("init io buffer error!");
         destroy();
         std::abort();
     }
 
     // init rga, and link input buffer to rga output buffer in order to no copy
-    if (!init_rga_buffer()) {
+    if (!init_rga_buffer())
+    {
         SPDLOG_ERROR("init rga buffer error!");
         destroy();
         std::abort();
     }
 }
 
-std::shared_ptr<YOLO_MODEL> make_detector(const char* model_name, int num_classes, float nms_threshold, 
-    float box_conf_threshold, int input_width, int input_height, Datasets dataset_type) {
-        return make_shared<YOLO_MODEL>(model_name, num_classes, nms_threshold, box_conf_threshold, input_width, 
-            input_height, dataset_type);
-    }
+std::shared_ptr<YOLO_MODEL> make_detector(const char *model_name, int num_classes, float nms_threshold,
+                                          float box_conf_threshold, int input_width, int input_height, Datasets dataset_type)
+{
+    return make_shared<YOLO_MODEL>(model_name, num_classes, nms_threshold, box_conf_threshold, input_width,
+                                   input_height, dataset_type);
+}
