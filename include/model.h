@@ -10,6 +10,7 @@
 #include "rknn_api.h"
 
 #include "label.h"
+#include "pred_data.h"
 
 /// Maximum number of detected objects
 #define OBJ_NUMB_MAX_SIZE 64
@@ -89,7 +90,7 @@ public:
      * @return cv::Mat with detected box
      * @note Modifies input image to draw detection results
      */
-    cv::Mat inference(cv::Mat& orig_img);
+    bool inference(const cv::Mat& orig_img, Obstacles& obs, const double_t& timestamp);
 
     /**
      * @brief Preprocess input image for model inference
@@ -100,7 +101,7 @@ public:
      * - Color space conversion (BGR→RGB)
      * - Image resizing using RGA hardware
      */
-    bool preprocess(cv::Mat& orig_img);
+    bool preprocess(const cv::Mat& orig_img);
 
     /**
      * @brief Postprocess model outputs to detection results

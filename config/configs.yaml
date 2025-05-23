@@ -1,0 +1,32 @@
+%YAML:1.0
+---
+
+# iceoryx configs
+iceoryx_runtime_name: "RK_YOLO"
+
+# iceoryx subscriber configs
+iceoryx_service: "camera"
+image_instance: "image"
+image_topics:
+  - fisheye_front
+  - fisheye_left
+
+# iceoryx publisher configs
+iceoryx_obs_service: "detect"
+obs_instance: "obstacle"
+obs_topics:
+  - fisheye_front
+  - fisheye_left
+
+# model setting
+model_path: "./model/yolov5s-640-640.rknn"
+num_classes: 80
+nms_threshold: 0.45
+box_conf_threshold: 0.25
+input_width: 1920
+input_height: 1080
+
+# logger configs
+log_dir: "./log"
+log_level: "debug"
+log_retention_days: 3

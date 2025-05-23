@@ -22,11 +22,13 @@ INCS          :=  -I $(SRC_PATH) \
 				  -I $(INC_PATH) \
 				  -I $(RKNN_INSTALL_DIR)/include \
 				  -I /usr/include/rga \
+				  -I /usr/local/include/iceoryx/v2.95.4 \
 
 LIBS          :=  -L /usr/local/lib \
 				  -L $(RKNN_INSTALL_DIR)/aarch64 -lrknnrt\
 				  -lstdc++fs -lfmt -lpthread \
 				  -L /usr/lib/aarch64-linux-gnu/librga.so -lrga \
+				  -liceoryx_posh -liceoryx_hoofs -liceoryx_binding_c -lzip\
 				  `pkg-config --libs opencv4`
 
 

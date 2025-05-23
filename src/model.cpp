@@ -1,6 +1,7 @@
 #include "model.h"
-#include "spdlog/spdlog.h"
+#include "logger.h"
 #include "utils.h"
+#include "pred_data.h"
 
 YOLO_MODEL::YOLO_MODEL(const char *model_name, int num_classes, float nms_threshold, float box_conf_threshold_,
                        int input_width, int input_height, Datasets dataset_type) : model_name_(model_name),
@@ -236,7 +237,7 @@ bool YOLO_MODEL::init_io_buffer()
     return true;
 }
 
-bool YOLO_MODEL::preprocess(cv::Mat &orig_img)
+bool YOLO_MODEL::preprocess(const cv::Mat &orig_img)
 {
 
     // BGR -> RGB
@@ -352,7 +353,7 @@ void YOLO_MODEL::reset_task()
     memset(&detect_result_group_, 0, sizeof(detect_result_group_t));
 }
 
-cv::Mat YOLO_MODEL::inference(cv::Mat &orig_img)
+bool YOLO_MODEL::inference(const cv::Mat &orig_img, Obstacles &obs, const double_t& timestamp)
 {
     reset_task();
     struct timeval start_time, stop_time;
@@ -386,41 +387,24 @@ cv::Mat YOLO_MODEL::inference(cv::Mat &orig_img)
     gettimeofday(&stop_time, NULL);
     SPDLOG_DEBUG("postprocess(deqnt+nms): {} ms", (_get_us(stop_time) - _get_us(start_time)) / 1000);
 
-    // draw result
-    // TODO: Can be encapsulated as a function
-    int font_face = cv::FONT_HERSHEY_SIMPLEX;
-    float font_scale = 0.001 * std::min(orig_img.cols, orig_img.rows);
-    int font_thickness = 1;
-    int baseline = 0;
-    SPDLOG_DEBUG("------------------num_object:{}----------------------", detect_result_group_.count);
+    uint8_t last_count = 0;
     for (int i = 0; i < detect_result_group_.count; i++)
     {
         detect_result_t *det_result = &(detect_result_group_.results[i]);
-        auto name = labels_map_->get_label(det_result->id);
-        auto rec_color = labels_map_->get_color(det_result->id);
-        auto txt_color = labels_map_->get_inverse_color(rec_color);
+        obs.obstacles[i].cx = int((det_result->box.right + det_result->box.left)/2);
+        obs.obstacles[i].cy = int((det_result->box.bottom + det_result->box.top)/2);
+        obs.obstacles[i].w = det_result->box.right - det_result->box.left;
+        obs.obstacles[i].h = det_result->box.bottom - det_result->box.top;
+        obs.obstacles[i].classid = det_result->id;
+        obs.obstacles[i].conf = det_result->prop;
 
-        auto txt = cv::format({"%s: %.2f%%"}, name.c_str(), det_result->prop * 100);
-        auto txt_size = cv::getTextSize(txt, font_face, font_scale, font_thickness, &baseline);
-
-        int txt_height = txt_size.height + baseline + 10;
-        int txt_width = txt_size.width + 3;
-        int x1 = det_result->box.left;
-        int y1 = det_result->box.top;
-        int x2 = det_result->box.right;
-        int y2 = det_result->box.bottom;
-
-        cv::Point txt_pos(round(x1), round(y1 - (txt_size.height - baseline + font_thickness)));
-        cv::Rect txt_rec(round(x1 - font_thickness), round(y1 - txt_height), txt_width, txt_height);
-        cv::Rect box_rec(round(x1), round(y1), round(x2 - x1), round(y2 - y1));
-
-        cv::rectangle(orig_img, box_rec, rec_color, 3);
-        cv::rectangle(orig_img, txt_rec, rec_color, -1);
-        cv::putText(orig_img, txt, txt_pos, font_face, font_scale, txt_color, font_thickness, 16);
-        SPDLOG_DEBUG("{} @ (Confidence: {}, Box[ltrb]: {} {} {} {})", name, det_result->prop, det_result->box.left,
-                     det_result->box.top, det_result->box.right, det_result->box.bottom);
+        last_count++;
     }
-    return orig_img;
+
+    obs.obs_num = last_count;
+    obs.timestamp = timestamp;
+    SPDLOG_INFO("detect nums: {}, timestamp: {}", static_cast<int>(obs.obs_num), obs.timestamp);
+    return true;
 }
 
 void YOLO_MODEL::destroy()

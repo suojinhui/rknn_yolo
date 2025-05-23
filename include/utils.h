@@ -6,6 +6,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
+#include "iostream"
+#include "chrono"
+#include "cmath"
+#include "sstream"
+#include "iomanip"
+#include <filesystem>
+#include <zip.h>
+#include <stdexcept>
 
 #include "RgaUtils.h"
 
@@ -317,5 +325,59 @@ inline static int clamp(float val, int min, int max) { return val > min ? (val <
  * @return Time in microseconds
  */
 static double _get_us(struct timeval t) { return (t.tv_sec * 1000000 + t.tv_usec); }
+
+static void CompressFile(const std::string &file) {
+    try {
+        SPDLOG_INFO("Compressing {}", file);
+        std::filesystem::path file_path(file);
+        std::filesystem::path zip_path = file_path;
+        zip_path.replace_extension(".zip");
+
+        std::string zip_file = zip_path.string();
+
+        struct zip *archive = zip_open(zip_file.c_str(), ZIP_CREATE | ZIP_TRUNCATE, nullptr);
+        if (!archive) {
+            throw std::runtime_error("Failed to create zip file.");
+        }
+
+        zip_source_t *source = zip_source_file(archive, file.c_str(), 0, -1);
+        if (!source) {
+            zip_close(archive);
+            throw std::runtime_error("Failed to create zip source.");
+        }
+
+        std::string filename = file_path.filename().string();
+
+        if (zip_file_add(archive, filename.c_str(), source, ZIP_FL_OVERWRITE) < 0) {
+            zip_source_free(source);
+            zip_close(archive);
+            throw std::runtime_error("Failed to add file to zip.");
+        }
+
+        zip_close(archive);
+        SPDLOG_INFO("Removing {}", file);
+        std::filesystem::remove(file);
+    }
+    catch (const std::exception &error) {
+        std::cerr << error.what() << std::endl;
+    }
+    return;
+}
+
+static bool IsFileExpired(const std::string &file, int retention_seconds) {
+    try {
+        auto last_write_time = std::filesystem::last_write_time(file);
+        auto last_write_time_point = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
+                last_write_time - std::filesystem::file_time_type::clock::now() + std::chrono::system_clock::now());
+        auto current_time = std::chrono::system_clock::now();
+        auto elapsed_time = current_time - last_write_time_point;
+        auto elapsed_seconds = std::chrono::duration_cast<std::chrono::seconds>(elapsed_time);
+        return elapsed_seconds.count() > retention_seconds;
+    }
+    catch (const std::filesystem::filesystem_error &error) {
+        std::cerr << "Filesystem error: " << error.what() << std::endl;
+        return false;
+    }
+}
 
 #endif //__UTILS_H__
