@@ -28,5 +28,5 @@ input_height: 1080
 
 # logger configs
 log_dir: "./log"
-log_level: "debug"
+log_level: "info"
 log_retention_days: 3

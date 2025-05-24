@@ -21,8 +21,9 @@ INCS          :=  -I $(SRC_PATH) \
 				  -I $(OPENCV_INSTALL_DIR) \
 				  -I $(INC_PATH) \
 				  -I $(RKNN_INSTALL_DIR)/include \
-				  -I /usr/include/rga \
-				  -I /usr/local/include/iceoryx/v2.95.4 \
+				  -I $(RGA_INCLUDE_DIR) \
+				  -I $(ICEORYX_INCLUDE_DIR) \
+				  -I $(SPDLOG_INCLUDE_DIR)
 
 LIBS          :=  -L /usr/local/lib \
 				  -L $(RKNN_INSTALL_DIR)/aarch64 -lrknnrt\
@@ -33,7 +34,7 @@ LIBS          :=  -L /usr/local/lib \
 
 
 ifeq ($(DEBUG),1)
-CXXFLAGS      +=  -g -O0
+CXXFLAGS      +=  -g -O0 -DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG
 else
 CXXFLAGS      +=  -O3
 endif

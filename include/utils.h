@@ -326,6 +326,22 @@ inline static int clamp(float val, int min, int max) { return val > min ? (val <
  */
 static double _get_us(struct timeval t) { return (t.tv_sec * 1000000 + t.tv_usec); }
 
+/**
+ * @brief Compresses a file into ZIP format and removes the original
+ * 
+ * @param file Path to the target file for compression
+ * 
+ * @details This function:
+ * 1. Creates a ZIP archive with same name and .zip extension
+ * 2. Adds the original file to the archive
+ * 3. Removes the source file upon successful compression
+ * 
+ * @note Uses libzip library for compression operations
+ * @warning Not thread-safe - requires external synchronization
+ * 
+ * @throw std::runtime_error On ZIP creation/processing failures
+ * @throw std::filesystem::filesystem_error On file operations
+ */
 static void CompressFile(const std::string &file) {
     try {
         SPDLOG_INFO("Compressing {}", file);
@@ -364,6 +380,20 @@ static void CompressFile(const std::string &file) {
     return;
 }
 
+/**
+ * @brief Checks if a file has exceeded retention period
+ * 
+ * @param file Path to the file to check
+ * @param retention_seconds Retention threshold in seconds
+ * @return true if file age > retention period
+ * @return false if not expired or filesystem error occurs
+ * 
+ * @details Calculates age based on last write time with
+ *          filesystem clock to system clock conversion
+ * 
+ * @note May have 1-2 second precision variance across filesystems
+ * @warning Time conversion assumes steady clock alignment
+ */
 static bool IsFileExpired(const std::string &file, int retention_seconds) {
     try {
         auto last_write_time = std::filesystem::last_write_time(file);

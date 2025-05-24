@@ -10,10 +10,10 @@
 #include "rknn_api.h"
 
 #include "label.h"
-#include "pred_data.h"
+#include "obstacle_data.h"
 
 /// Maximum number of detected objects
-#define OBJ_NUMB_MAX_SIZE 64
+#define OBJ_NUMB_MAX_SIZE 16
 
 /**
  * @brief Structure representing basic image information
@@ -87,38 +87,12 @@ public:
     /**
      * @brief Execute complete inference pipeline
      * @param orig_img Input image in BGR format (OpenCV default)
+     * @param[out] obs Input Obstacle data
+     * @param timestamp Timestamp of input orig_image
      * @return cv::Mat with detected box
      * @note Modifies input image to draw detection results
      */
     bool inference(const cv::Mat& orig_img, Obstacles& obs, const double_t& timestamp);
-
-    /**
-     * @brief Preprocess input image for model inference
-     * @param orig_img Input image in BGR format
-     * @return true if preprocessing succeeded
-     * @return false if preprocessing failed
-     * @details Performs:
-     * - Color space conversion (BGR→RGB)
-     * - Image resizing using RGA hardware
-     */
-    bool preprocess(const cv::Mat& orig_img);
-
-    /**
-     * @brief Postprocess model outputs to detection results
-     * @details Performs:
-     * - Output tensor dequantization
-     * - Anchor decoding for three detection layers
-     * - Confidence threshold filtering
-     * - Class-aware Non-Maximum Suppression
-     * - Coordinate scaling to original model input size, not original image input size!
-     */
-    void postprocess();
-
-    /**
-     * @brief Reset detection results buffer
-     * @note Should be called before new inference
-     */
-    void reset_task();
 
     /**
      * @brief Release all allocated resources
@@ -138,36 +112,7 @@ public:
      */
     void init_model();
 
-    /**
-     * @brief Load RKNN model and query model attributes
-     * @return true if model loaded successfully
-     * @return false if loading failed
-     * @details Performs:
-     * - Model file loading
-     * - RKNN context creation
-     * - Model version/IO/attribute queries
-     */
-    bool load_model();
-
-    /**
-     * @brief Initialize model input/output buffers
-     * @return true if buffer initialization succeeded
-     * @return false if initialization failed
-     * @note Uses RKNN API to allocate NPU-side memory
-     */
-    bool init_io_buffer();
-
-    /**
-     * @brief Initialize RGA buffers for hardware acceleration
-     * @return true if RGA initialized successfully
-     * @return false if RGA initialization failed
-     * @details Sets up:
-     * - Source buffer for original image
-     * - Destination buffer aligned with model input
-     */
-    bool init_rga_buffer();
-
-public:
+private:
     // RKNN components
     rknn_context model_rk_context_;     ///< RKNN execution context
     rknn_sdk_version version_;          ///< RKNN SDK version info
@@ -202,6 +147,63 @@ public:
     detect_result_group_t detect_result_group_; ///< Detection results buffer
     std::vector<float> out_scales_;      ///< Output tensor scaling factors
     std::vector<int32_t> out_zps_;       ///< Output tensor zero points
+
+    /**
+     * @brief Load RKNN model and query model attributes
+     * @return true if model loaded successfully
+     * @return false if loading failed
+     * @details Performs:
+     * - Model file loading
+     * - RKNN context creation
+     * - Model version/IO/attribute queries
+     */
+    bool load_model();
+
+    /**
+     * @brief Initialize model input/output buffers
+     * @return true if buffer initialization succeeded
+     * @return false if initialization failed
+     * @note Uses RKNN API to allocate NPU-side memory
+     */
+    bool init_io_buffer();
+
+    /**
+     * @brief Initialize RGA buffers for hardware acceleration
+     * @return true if RGA initialized successfully
+     * @return false if RGA initialization failed
+     * @details Sets up:
+     * - Source buffer for original image
+     * - Destination buffer aligned with model input
+     */
+    bool init_rga_buffer();
+
+    /**
+     * @brief Preprocess input image for model inference
+     * @param orig_img Input image in BGR format
+     * @return true if preprocessing succeeded
+     * @return false if preprocessing failed
+     * @details Performs:
+     * - Color space conversion (BGR→RGB)
+     * - Image resizing using RGA hardware
+     */
+    bool preprocess(const cv::Mat& orig_img);
+
+    /**
+     * @brief Postprocess model outputs to detection results
+     * @details Performs:
+     * - Output tensor dequantization
+     * - Anchor decoding for three detection layers
+     * - Confidence threshold filtering
+     * - Class-aware Non-Maximum Suppression
+     * - Coordinate scaling to original model input size, not original image input size!
+     */
+    void postprocess();
+
+    /**
+     * @brief Reset detection results buffer
+     * @note Should be called before new inference
+     */
+    void reset_task();
 };
 
 /**

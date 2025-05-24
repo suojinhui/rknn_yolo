@@ -1,4 +1,4 @@
-#include "muti_yolo_pub.h"
+#include "multi_yolo_pub.h"
 #include "utils.h"
 #include "logger.h"
 #include "signal_handler.h"
@@ -8,13 +8,13 @@
 #include "yolo_node.h"
 #include "label.h"
 
-Muti_yolo_pub::Muti_yolo_pub(const std::string &config_path): config_path_(config_path)
+Multi_yolo_pub::Multi_yolo_pub(const std::string &config_path): config_path_(config_path)
 {}
 
-Muti_yolo_pub::~Muti_yolo_pub()
+Multi_yolo_pub::~Multi_yolo_pub()
 {}
 
-bool Muti_yolo_pub::LoadConfigs(){
+bool Multi_yolo_pub::LoadConfigs(){
     cv::FileStorage configs(config_path_, cv::FileStorage::READ);
     if (!configs.isOpened())
     {
@@ -60,10 +60,7 @@ bool Muti_yolo_pub::LoadConfigs(){
     return true;
 }
 
-void Muti_yolo_pub::Start(){
-    // read config
-    LoadConfigs();
-    SPDLOG_DEBUG("Successfully loaded configuration file!");
+void Multi_yolo_pub::Start(){
 
     // initiate Logger
     Logger::GetInstance(log_level_, log_dir_, log_retention_days_);
@@ -106,9 +103,9 @@ void Muti_yolo_pub::Start(){
         
         detectors[i]->init_model();
 
-        yolo_nodes[i]->start_detect_loop(subscribers[i], detectors[i]);
+        yolo_nodes[i]->Start_detect_loop(subscribers[i], detectors[i]);
 
-        publish_threads[i] = std::thread(&Muti_yolo_pub::PublishObs, this, yolo_nodes[i], publishers[i]);
+        publish_threads[i] = std::thread(&Multi_yolo_pub::PublishObs, this, yolo_nodes[i], publishers[i]);
     }
 
     SignalHandler::GetInstance().WaitForStopSignal();
@@ -116,7 +113,7 @@ void Muti_yolo_pub::Start(){
 #pragma omp parallel for
     for (int i = 0; i < node_nums; i++)
     {
-        yolo_nodes[i]->stop();
+        yolo_nodes[i]->Stop();
         subscribers[i]->Stop();
         detectors[i]->destroy();
     }
@@ -136,13 +133,13 @@ void Muti_yolo_pub::Start(){
     return;
 }
 
-void Muti_yolo_pub::PublishObs(std::shared_ptr<Yolo_node> yolo_node, std::shared_ptr<ObstaclePublisher> publisher){
+void Multi_yolo_pub::PublishObs(std::shared_ptr<Yolo_node> yolo_node, std::shared_ptr<ObstaclePublisher> publisher){
 
     Obstacles obs;
 
     while (!yolo_node->IsStopped())
     {
-        if (yolo_node->get_obstacles(obs))
+        if (yolo_node->Get_obstacles(obs))
         {
             publisher->PublishObstacle(obs);
         }

@@ -1,7 +1,7 @@
 #include "model.h"
 #include "logger.h"
 #include "utils.h"
-#include "pred_data.h"
+#include "obstacle_data.h"
 
 YOLO_MODEL::YOLO_MODEL(const char *model_name, int num_classes, float nms_threshold, float box_conf_threshold_,
                        int input_width, int input_height, Datasets dataset_type) : model_name_(model_name),
