@@ -14,45 +14,62 @@ Multi_yolo_pub::Multi_yolo_pub(const std::string &config_path): config_path_(con
 Multi_yolo_pub::~Multi_yolo_pub()
 {}
 
-bool Multi_yolo_pub::LoadConfigs(){
+bool Multi_yolo_pub::LoadConfigs() {
     cv::FileStorage configs(config_path_, cv::FileStorage::READ);
-    if (!configs.isOpened())
-    {
+    if (!configs.isOpened()) {
         std::cerr << "Error: Unable to open the configuration file: " << config_path_ << std::endl;
         return false;
     }
-    try
-    {
+
+    try {
+        // helper lambda to check key existence and read
+        auto readConfig = [&](const std::string &key, auto &var) -> bool {
+            if (!configs[key].empty()) {
+                configs[key] >> var;
+                return true;
+            } else {
+                std::cerr << "Error: Missing key in config file: " << key << std::endl;
+                return false;
+            }
+        };
+
+        bool success = true;
+
         // iceoryx configs
-        configs["iceoryx_runtime_name"] >> iceoryx_runtime_name_;
+        success &= readConfig("iceoryx_runtime_name", iceoryx_runtime_name_);
 
         // subscriber image configs
-        configs["iceoryx_service"] >> iceoryx_service_;
-        configs["image_instance"] >> image_instance_;
-        configs["image_topics"] >> image_topics_;
+        success &= readConfig("iceoryx_service", iceoryx_service_);
+        success &= readConfig("image_instance", image_instance_);
+        success &= readConfig("image_topics", image_topics_);
 
         // publisher obstacle configs
-        configs["iceoryx_obs_service"] >> iceoryx_obs_service_;
-        configs["obs_instance"] >> obs_instance_;
-        configs["obs_topics"] >> obs_topics_;
+        success &= readConfig("iceoryx_obs_service", iceoryx_obs_service_);
+        success &= readConfig("obs_instance", obs_instance_);
+        success &= readConfig("obs_topics", obs_topics_);
 
         // yolo model build config
-        configs["model_path"] >> model_path_;
-        configs["num_classes"] >> num_classes_;
-        configs["nms_threshold"] >> nms_threshold_;
-        configs["box_conf_threshold"] >> box_conf_threshold_;
-        configs["input_width"] >> input_width_;
-        configs["input_height"] >> input_height_;
+        success &= readConfig("model_path", model_path_);
+        success &= readConfig("num_classes", num_classes_);
+        success &= readConfig("nms_threshold", nms_threshold_);
+        success &= readConfig("box_conf_threshold", box_conf_threshold_);
+        success &= readConfig("input_width", input_width_);
+        success &= readConfig("input_height", input_height_);
 
         // log configs
-        configs["log_dir"] >> log_dir_;
-        configs["log_level"] >> log_level_;
-        configs["log_retention_days"] >> log_retention_days_;
+        success &= readConfig("log_dir", log_dir_);
+        success &= readConfig("log_level", log_level_);
+        success &= readConfig("log_retention_days", log_retention_days_);
 
         configs.release();
+
+        if (!success) {
+            std::cerr << "Error: Configuration loading failed due to missing keys." << std::endl;
+            std::abort();
+            return false;
+        }
     }
-    catch (const cv::Exception &error)
-    {
+    catch (const cv::Exception &error) {
         std::cerr << "Error: Failed to read configuration parameters. Exception: " << error.what() << std::endl;
         return false;
     }

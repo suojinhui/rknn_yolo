@@ -1,4 +1,5 @@
 #include "yolo_node.h"
+#include "logger.h"
 
 Yolo_node::Yolo_node(std::string name): name_(name) {}
 
@@ -20,11 +21,12 @@ void Yolo_node::Detect_form_subscriber(std::shared_ptr<ImageSubscriber> subscrib
             else
             {
                 std::cerr << name_ + ": Failed to inference image" << std::endl;
+                SPDLOG_ERROR("{}: Failed to inference image, timestamp: {}", name_, timestamp);
             }
         }
         else
         {
-            std::cerr << name_ + ": Failed to subscribe image" << std::endl;
+            SPDLOG_WARN("{}: Failed to subscribe image, near timestamp {}", name_, timestamp);
         }
     }
 

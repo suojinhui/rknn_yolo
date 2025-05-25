@@ -39,6 +39,15 @@ private:
 
     std::thread clean_thread_; // Background thread handle for log maintenance tasks
 
+    /**
+     * @brief Private constructor to enforce singleton pattern
+     * @param log_level Initial log severity level
+     * @param log_dir Directory path for log storage
+     * @param log_retention_days Days to retain log files
+     * 
+     * @throw std::invalid_argument if invalid log_level provided
+     * @throw std::filesystem::filesystem_error on directory creation failure
+     */
     Logger(const std::string &log_level, const std::string &log_dir, int log_retention_days);
 
 public:

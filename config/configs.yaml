@@ -10,6 +10,8 @@ image_instance: "image"
 image_topics:
   - fisheye_front
   - fisheye_left
+  - fisheye_right
+  - fisheye_rear
 
 # iceoryx publisher configs
 iceoryx_obs_service: "detect"
@@ -17,6 +19,8 @@ obs_instance: "obstacle"
 obs_topics:
   - fisheye_front
   - fisheye_left
+  - fisheye_right
+  - fisheye_rear
 
 # model setting
 model_path: "./model/yolov5s-640-640.rknn"
